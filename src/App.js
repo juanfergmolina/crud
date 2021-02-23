@@ -1,6 +1,7 @@
 import { isEmpty, size } from 'lodash'
-import React, {useState} from 'react'
+import React, {useState, useEffect} from 'react'
 import shortid from 'shortid'
+import { addDocument, deleteDocument, getCollection, updateDocument } from './actions'
 
 
 function App() {
@@ -8,27 +9,57 @@ function App() {
   const [tasks, setTasks] = useState([])
   const [editMode, setEditMode] = useState(false)
   const [id, setId] = useState("")
+  const [error, setError] = useState(null)
 
-  const addTask = (e) => {
-    e.preventDefault()
+  useEffect(() => {
+    (async () => {
+      const result = await getCollection("tasks")
+      if (result.statusResponse) {
+        setTasks(result.data)
+      }
+    }) ()
+  }, [])
+
+  const validForm = () => {
+    let isValid=true
+    setError(null)
     if (isEmpty(task)) {
-      console.log("Task empty")
+      setError("Debes ingresar una tarea.")
+      return isValid=false
+    }
+
+    return isValid=true
+    
+  }
+
+  const addTask = async (e) => {
+    e.preventDefault()
+    
+    if (!validForm()) {
+      return      
+    }
+
+    const result = await addDocument("tasks", {name: task})
+
+    if (!result.statusResponse) {
+      setError(result.error)
       return
     }
-    
-    const newTask = {
-      id: shortid.generate(),
-      name: task
-    }
 
-    setTasks([ ...tasks, newTask ])
+    setTasks([ ...tasks, {id: result.data.id, name: task} ])
     setTask("")
   }
 
-  const saveTask = (e) => {
+  const saveTask = async (e) => {
     e.preventDefault()
-    if (isEmpty(task)) {
-      console.log("Task empty")
+
+    if (!validForm()) {
+      return      
+    }
+
+    const result = await updateDocument("tasks", id, { name:task })
+    if (!result.statusResponse) {
+      setError(result.error)
       return
     }
     
@@ -39,7 +70,12 @@ function App() {
     setId("")
   }
 
-  const deleteTask = (id) => {
+  const deleteTask = async(id) => {
+    const result = await deleteDocument("tasks",id)
+    if (!result.statusResponse) {
+      setError(result.error)
+      return
+    }
     const filteredTasks = tasks.filter(task => task.id !== id)
     setTasks(filteredTasks)
   }
@@ -59,7 +95,7 @@ function App() {
           <h4 className="text-center">Lista de Tareas</h4>
           {
             size(tasks) == 0 ? (
-              <h5 className="text-center">Aun no hay tareas programadas</h5>
+              <li className="list-group-item">Aun no hay tareas programadas</li>
             ): (
             <ul className="list-group">
               {
@@ -91,6 +127,9 @@ function App() {
             { editMode ? "Modificar tarea" : "Agregar Tarea"}
           </h4>
             <form onSubmit={ editMode ? saveTask : addTask}>
+              {
+                error && <span className="text-danger">{error}</span>
+              }
               <input
                 type="text"
                 className="form-control mb-2"
